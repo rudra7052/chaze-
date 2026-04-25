@@ -13,6 +13,37 @@ function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+function getLoginErrorMessage(error: unknown) {
+  const code = typeof error === 'object' && error !== null && 'code' in error
+    ? String((error as { code?: string }).code)
+    : '';
+  const message = error instanceof Error ? error.message : 'Please try again.';
+  const host = window.location.hostname;
+  const isRawIpHost = /^(?:\d{1,3}\.){3}\d{1,3}$/.test(host);
+
+  if (code === 'auth/unauthorized-domain') {
+    if (isRawIpHost) {
+      return `Google sign-in is not enabled for ${host}. Add an authorized hostname in Firebase Auth settings and open the site with that hostname instead of the raw IP.`;
+    }
+
+    return `Google sign-in is not enabled for ${host}. Add this host to Firebase Authentication > Settings > Authorized domains.`;
+  }
+
+  if (code === 'auth/popup-closed-by-user') {
+    return 'The Google sign-in window was closed before the login finished.';
+  }
+
+  if (code === 'auth/popup-blocked') {
+    return 'This browser blocked the Google sign-in popup. Use Local Demo Mode here, or open the app in Chrome or Safari for real Google login.';
+  }
+
+  if (code === 'auth/network-request-failed') {
+    return 'The sign-in request could not reach Firebase. Check your internet connection and try again.';
+  }
+
+  return message;
+}
+
 // Pages
 import Dashboard from './Dashboard';
 import Subjects from './Subjects';
@@ -24,14 +55,27 @@ import FloatChat from './FloatChat';
 
 export default function App() {
   const location = useLocation();
-  const { user, profile, loading } = useAuth();
+  const { user, profile, loading, startDemoMode } = useAuth();
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [loginError, setLoginError] = useState<string | null>(null);
+  const host = window.location.hostname;
+  const isRawIpHost = /^(?:\d{1,3}\.){3}\d{1,3}$/.test(host);
+  const isLanHost = host !== 'localhost' && host !== '127.0.0.1';
+  const canUseDemoMode = host === 'localhost' || host === '127.0.0.1' || isRawIpHost;
   
   const handleLogin = async () => {
     const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: 'select_account' });
+    setLoginError(null);
+    setIsLoggingIn(true);
+
     try {
       await signInWithPopup(auth, provider);
     } catch (error) {
       console.error("Login failed", error);
+      setLoginError(getLoginErrorMessage(error));
+    } finally {
+      setIsLoggingIn(false);
     }
   };
 
@@ -54,10 +98,32 @@ export default function App() {
           <p className="text-slate-400 mb-8">Sign in to start your financial literacy journey.</p>
           <button 
             onClick={handleLogin}
+            disabled={isLoggingIn}
             className="w-full py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold transition-colors"
           >
-            Sign in with Google
+            {isLoggingIn ? 'Opening Google Sign-In...' : 'Sign in with Google'}
           </button>
+          {canUseDemoMode && (
+            <button
+              onClick={startDemoMode}
+              className="w-full mt-3 py-4 bg-white/5 hover:bg-white/10 text-slate-200 rounded-xl font-bold transition-colors border border-white/10"
+            >
+              Continue in Local Demo Mode
+            </button>
+          )}
+          {loginError && (
+            <p className="mt-4 text-sm text-rose-300 leading-relaxed">{loginError}</p>
+          )}
+          {canUseDemoMode && (
+            <p className="mt-4 text-xs text-slate-400 leading-relaxed">
+              Google sign-in can fail inside embedded browsers because Firebase popup and redirect storage are restricted here. Demo mode keeps the app usable on localhost and LAN while you test locally.
+            </p>
+          )}
+          {isLanHost && (
+            <p className="mt-4 text-xs text-amber-200/80 leading-relaxed">
+              Accessing this app from another device may require this host to be added in Firebase Authentication authorized domains.
+            </p>
+          )}
         </div>
       </div>
     );

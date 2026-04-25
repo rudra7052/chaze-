@@ -2,11 +2,9 @@ import { useState, useEffect } from 'react';
 import { firebaseService } from './firebaseService';
 import { useAuth } from './useAuth';
 import { User, Mail, Shield, Camera, Edit2, LogOut } from 'lucide-react';
-import { auth } from './firebase';
-import { signOut } from 'firebase/auth';
 
 export default function Profile() {
-  const { user, profile } = useAuth();
+  const { user, profile, isDemoUser, logout } = useAuth();
   const [loading, setLoading] = useState(true);
   const [progressData, setProgressData] = useState<any[]>([]);
 
@@ -72,11 +70,11 @@ export default function Profile() {
           </div>
 
           <button 
-            onClick={() => signOut(auth)}
+            onClick={() => void logout()}
             className="w-full flex items-center justify-center gap-3 py-5 px-6 rounded-[24px] bg-white/5 border border-white/5 text-rose-400 hover:bg-rose-500/10 hover:border-rose-500/30 transition-all font-bold group"
           >
             <LogOut size={20} className="group-hover:-translate-x-1 transition-transform" />
-            Sign Out
+            {isDemoUser ? 'Exit Demo Mode' : 'Sign Out'}
           </button>
         </div>
 
