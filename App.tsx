@@ -4,6 +4,9 @@ import { Routes, Route, Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { useAuth } from './useAuth';
+import { signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
+import { auth } from './firebase';
 
 // Helper for tailwind classes
 function cn(...inputs: ClassValue[]) {
@@ -11,16 +14,54 @@ function cn(...inputs: ClassValue[]) {
 }
 
 // Pages
-import Dashboard from './components/Dashboard';
-import Subjects from './components/Subjects';
-import CourseView from './components/CourseView';
-import Simulators from './components/Simulators';
-import ProgressPage from './components/ProgressPage';
-import Profile from './components/Profile';
-import FloatChat from './components/FloatChat';
+import Dashboard from './Dashboard';
+import Subjects from './Subjects';
+import LessonPage from './LessonPage';
+import Simulators from './Simulators';
+import ProgressPage from './ProgressPage';
+import Profile from './Profile';
+import FloatChat from './FloatChat';
 
 export default function App() {
   const location = useLocation();
+  const { user, profile, loading } = useAuth();
+  
+  const handleLogin = async () => {
+    const provider = new GoogleAuthProvider();
+    try {
+      await signInWithPopup(auth, provider);
+    } catch (error) {
+      console.error("Login failed", error);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#0F1115] text-[#E2E8F0] flex items-center justify-center">
+        <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
+
+  if (!user || !profile) {
+    return (
+      <div className="min-h-screen bg-[#0F1115] text-[#E2E8F0] flex items-center justify-center p-6">
+        <div className="max-w-md w-full glass-panel p-10 text-center">
+          <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center font-bold text-white text-3xl mx-auto shadow-lg shadow-blue-500/20 mb-6">
+            C
+          </div>
+          <h1 className="text-3xl font-bold tracking-tight text-white mb-2">Chaze X</h1>
+          <p className="text-slate-400 mb-8">Sign in to start your financial literacy journey.</p>
+          <button 
+            onClick={handleLogin}
+            className="w-full py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold transition-colors"
+          >
+            Sign in with Google
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const navItems = [
     { name: 'Dashboard', icon: LayoutDashboard, path: '/' },
@@ -65,11 +106,11 @@ export default function App() {
         <div className="mt-8 p-4 glass-panel flex flex-col gap-3">
           <div className="text-[10px] uppercase tracking-widest text-slate-500 font-bold">Account Progress</div>
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-300">Level 4</span>
-            <span className="text-blue-400 text-[10px] font-bold">1,250 XP</span>
+            <span className="text-xs font-semibold text-slate-300">Level {profile?.level ?? 0}</span>
+            <span className="text-blue-400 text-[10px] font-bold">{profile?.xp || 0} XP</span>
           </div>
           <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
-            <div className={`bg-blue-500 h-full transition-all duration-1000`} style={{ width: '65%' }}></div>
+            <div className={`bg-blue-500 h-full transition-all duration-1000`} style={{ width: `${Math.max(5, ((profile?.xp || 0) % 100))}%` }}></div>
           </div>
         </div>
       </aside>
@@ -88,17 +129,15 @@ export default function App() {
           
           <div className="flex items-center gap-6">
             <div className="text-right hidden md:block">
-              <div className="text-[10px] text-slate-500 uppercase font-bold tracking-widest mb-1">Learning Streak</div>
+              <div className="text-[10px] text-slate-500 uppercase font-bold tracking-widest mb-1">Badges Earned</div>
               <div className="flex gap-1 justify-end">
-                {[1, 2, 3, 4, 5, 6, 7].map(i => (
+                {Array.from({ length: Math.max(1, profile?.badges?.length || 1) }).map((_, i) => (
                   <div key={i} className="w-1.5 h-4 bg-orange-500 rounded-full shadow-[0_0_8px_rgba(249,115,22,0.4)]"></div>
                 ))}
               </div>
             </div>
-            <div className="w-10 h-10 rounded-full border-2 border-blue-500 p-0.5 shadow-[0_0_15px_rgba(59,130,246,0.3)]">
-              <div className="w-full h-full bg-slate-800 rounded-full flex items-center justify-center font-bold text-blue-400">
-                A
-              </div>
+            <div className="w-10 h-10 rounded-full border-2 border-blue-500 p-0.5 shadow-[0_0_15px_rgba(59,130,246,0.3)] bg-slate-800 flex items-center justify-center font-bold text-blue-400 overflow-hidden">
+               {profile?.name ? profile.name.charAt(0).toUpperCase() : 'U'}
             </div>
           </div>
         </header>
@@ -115,7 +154,7 @@ export default function App() {
               <Routes>
                 <Route path="/" element={<Dashboard />} />
                 <Route path="/subjects" element={<Subjects />} />
-                <Route path="/subjects/:subjectId/:unitId" element={<CourseView />} />
+                <Route path="/lesson/:id" element={<LessonPage />} />
                 <Route path="/simulators" element={<Simulators />} />
                 <Route path="/progress" element={<ProgressPage />} />
                 <Route path="/profile" element={<Profile />} />
@@ -128,4 +167,3 @@ export default function App() {
     </div>
   );
 }
-

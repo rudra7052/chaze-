@@ -1,7 +1,9 @@
 import { MessageSquare, Send, X, Bot, User } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { chatWithTutor } from '../services/aiService';
+import { api } from './api';
+import { firebaseService } from './firebaseService';
+import { useAuth } from './useAuth';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
@@ -10,6 +12,7 @@ function cn(...inputs: ClassValue[]) {
 }
 
 export default function FloatChat() {
+  const { user } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<{role: 'user' | 'bot', text: string}[]>([
     { role: 'bot', text: "Hi! I'm your Chaze Tutor. Need help understanding anything about finance?" }
@@ -32,10 +35,17 @@ export default function FloatChat() {
     setInput('');
     setIsTyping(true);
 
-    const response = await chatWithTutor(userMsg, "Global Help");
-    
-    setIsTyping(false);
-    setMessages(prev => [...prev, { role: 'bot', text: response }]);
+    try {
+      const data = await api.aiChat(userMsg);
+      setIsTyping(false);
+      setMessages(prev => [...prev, { role: 'bot', text: data.response }]);
+      if (user) {
+        await firebaseService.saveAIInteraction(user.uid, 'chat', userMsg, data.response);
+      }
+    } catch (error) {
+      setIsTyping(false);
+      setMessages(prev => [...prev, { role: 'bot', text: "I'm sorry, I'm having trouble connecting to the brain center. Please try again later." }]);
+    }
   };
 
   return (
@@ -96,6 +106,7 @@ export default function FloatChat() {
                     <span className="w-1.5 h-1.5 bg-neutral-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
                     <span className="w-1.5 h-1.5 bg-neutral-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
                     <span className="w-1.5 h-1.5 bg-neutral-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                    <span className="text-xs text-neutral-500 ml-2">Generating AI response...</span>
                   </div>
                 </div>
               )}

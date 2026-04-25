@@ -1,0 +1,100 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile data",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "createdAt": { "type": "number" },
+        "goals": {
+          "type": "array"
+        },
+        "riskProfile": { "type": "string", "enum": ["low", "medium", "high"] }
+      },
+      "required": ["userId", "name", "email", "createdAt"]
+    },
+    "Course": {
+      "title": "Course",
+      "description": "Learning course module",
+      "type": "object",
+      "properties": {
+        "courseId": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "category": { "type": "string", "enum": ["budgeting", "investment", "basics"] },
+        "difficulty": { "type": "string", "enum": ["beginner", "intermediate", "advanced"] },
+        "modules": { "type": "array" }
+      },
+      "required": ["courseId", "title", "description", "category", "difficulty", "modules"]
+    },
+    "UserProgress": {
+      "title": "UserProgress",
+      "description": "Tracks an individual user's completion status for a specific course",
+      "type": "object",
+      "properties": {
+        "progressId": { "type": "string" },
+        "userId": { "type": "string" },
+        "courseId": { "type": "string" },
+        "completedModules": { "type": "array" },
+        "progressPercentage": { "type": "number" },
+        "lastAccessed": { "type": "number" },
+        "quizScores": { "type": "array" }
+      },
+      "required": ["progressId", "userId", "courseId", "completedModules", "progressPercentage", "lastAccessed", "quizScores"]
+    },
+    "SimulationResult": {
+      "title": "SimulationResult",
+      "description": "Stores the input and output data from the budget/investment simulators.",
+      "type": "object",
+      "properties": {
+        "simulationId": { "type": "string" },
+        "userId": { "type": "string" },
+        "type": { "type": "string", "enum": ["budget", "investment"] },
+        "inputData": { "type": "object" },
+        "resultData": { "type": "object" },
+        "score": { "type": "number" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["simulationId", "userId", "type", "inputData", "resultData", "score", "createdAt"]
+    },
+    "AIInteraction": {
+      "title": "AIInteraction",
+      "description": "Stores interactions with the FloatChat or AI summaries for analytics and history.",
+      "type": "object",
+      "properties": {
+        "interactionId": { "type": "string" },
+        "userId": { "type": "string" },
+        "type": { "type": "string", "enum": ["chat", "summary", "quiz"] },
+        "input": { "type": "string" },
+        "output": { "type": "string" },
+        "timestamp": { "type": "number" }
+      },
+      "required": ["interactionId", "userId", "type", "input", "output", "timestamp"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "User" },
+      "description": "Stores user profile data. Auth UID is used as document ID."
+    },
+    "/courses/{courseId}": {
+      "schema": { "$ref": "Course" },
+      "description": "Stores all course content. Accessible by all authenticated users to read. Admins only can modify."
+    },
+    "/user_progress/{progressId}": {
+      "schema": { "$ref": "UserProgress" },
+      "description": "Tracks a specific user's progress for a course. progressId is userId_courseId"
+    },
+    "/simulation_results/{simulationId}": {
+      "schema": { "$ref": "SimulationResult" },
+      "description": "User's simulation results history."
+    },
+    "/ai_interactions/{interactionId}": {
+      "schema": { "$ref": "AIInteraction" },
+      "description": "User's interaction history with the AI feature."
+    }
+  }
+}

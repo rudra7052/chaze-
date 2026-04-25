@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Wallet, TrendingUp, ShieldCheck, Calculator, Info, Brain, ArrowRight, BarChart } from 'lucide-react';
-import { getAIFeedback } from '../services/aiService';
+import { Wallet, TrendingUp, ShieldCheck, Calculator, Info, Brain, ArrowRight, BarChart, CheckCircle2 } from 'lucide-react';
+import { api } from './api';
+import { firebaseService } from './firebaseService';
+import { useAuth } from './useAuth';
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart as ReBarChart, Bar, XAxis, YAxis, Tooltip, Legend, AreaChart, Area, CartesianGrid } from 'recharts';
 
 function cn(...inputs: any[]) {
@@ -53,12 +55,13 @@ export default function Simulators() {
 }
 
 function BudgetSimulator() {
+  const { user } = useAuth();
   const [salary, setSalary] = useState(50000);
   const [rent, setRent] = useState(15000);
   const [food, setFood] = useState(10000);
   const [entertainment, setEntertainment] = useState(5000);
   const [savings, setSavings] = useState(10000);
-  const [aiFeedback, setAiFeedback] = useState('');
+  const [results, setResults] = useState<{ remaining: number; score: number; insights: string[] } | null>(null);
   const [loading, setLoading] = useState(false);
 
   const total = rent + food + entertainment + savings;
@@ -72,11 +75,28 @@ function BudgetSimulator() {
     { name: 'Unallocated', value: Math.max(0, remaining), color: '#3b82f6' },
   ];
 
-  const getFeedback = async () => {
+  const getSimulation = async () => {
     setLoading(true);
-    const feedback = await getAIFeedback('budget', { salary, rent, food, entertainment, savings, remaining });
-    setAiFeedback(feedback);
-    setLoading(false);
+    try {
+      const inputData = { 
+        income: salary, 
+        needs: rent + food, 
+        wants: entertainment, 
+        savings 
+      };
+      // For the requirement "Enhance budget simulation to provide more detailed actionable insights"
+      // Wait, that's not what I'm doing in THIS turn, but the backend API budgetSimulation does a custom prompt.
+      // We are just saving what the API returns in Firestore now.
+      const respData = await api.budgetSimulation(inputData);
+      setResults(respData);
+      if (user) {
+         await firebaseService.saveSimulationResult(user.uid, 'budget', inputData, respData, respData.score || 0);
+      }
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -117,22 +137,33 @@ function BudgetSimulator() {
         </div>
 
         <button 
-          onClick={getFeedback}
+          onClick={getSimulation}
           disabled={loading}
           className="w-full py-4 bg-blue-600 text-white rounded-2xl font-bold flex items-center justify-center gap-3 hover:bg-blue-700 transition-all disabled:opacity-50 shadow-lg shadow-blue-600/20"
         >
           <Brain size={20} />
-          {loading ? 'Consulting AI...' : 'Analyze with AI Tutor'}
+          {loading ? 'Running simulation...' : 'Run Simulation'}
         </button>
 
-        {aiFeedback && (
-          <div className="ai-bubble p-8 rounded-[32px] relative overflow-hidden animate-in fade-in slide-in-from-bottom-6">
-             <div className="flex items-center gap-2 text-blue-300 font-bold mb-3 uppercase tracking-widest text-[10px]">
-                <Brain size={16} />
-                AI Strategy Insight
-              </div>
-              <p className="text-sm text-blue-100/80 leading-relaxed italic">"{aiFeedback}"</p>
-              <div className="absolute -right-4 -bottom-4 w-20 h-20 bg-white/5 rounded-full blur-2xl"></div>
+        {results && (
+          <div className="ai-bubble p-6 rounded-[24px] border border-blue-500/20 bg-blue-500/5 space-y-4">
+             <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-blue-400 font-bold uppercase tracking-widest text-[10px]">
+                  <Brain size={16} />
+                  Simulation Success
+                </div>
+                <div className="flex items-center gap-1 bg-blue-500/20 px-2 py-1 rounded text-blue-400 font-bold text-xs">
+                  Score: {results.score}/100
+                </div>
+             </div>
+             <div className="space-y-2">
+                {results.insights.map((insight, i) => (
+                  <div key={i} className="flex gap-2 text-sm text-blue-100/70 leading-snug">
+                    <CheckCircle2 size={14} className="mt-1 flex-shrink-0 text-blue-400" />
+                    <span>{insight}</span>
+                  </div>
+                ))}
+             </div>
           </div>
         )}
       </div>
@@ -313,23 +344,48 @@ function TaxSimulator() {
 }
 
 function InvestmentSimulator() {
+  const { user } = useAuth();
   const [monthlyInvest, setMonthlyInvest] = useState(5000);
   const [rate, setRate] = useState(12);
   const [years, setYears] = useState(10);
+  const [results, setResults] = useState<{ finalValue: number; totalInvested: number; gain: number } | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  const calculateFutureValue = (pmt: number, r: number, n: number) => {
+  const getSimulation = async () => {
+    setLoading(true);
+    try {
+      const risk = rate <= 8 ? 'safe' : rate <= 15 ? 'moderate' : 'aggressive';
+      const inputData = { 
+        monthly: monthlyInvest, 
+        years, 
+        risk: risk as any
+      };
+      const respData = await api.investmentSimulation(inputData);
+      setResults(respData);
+      if (user) {
+         await firebaseService.saveSimulationResult(user.uid, 'investment', inputData, respData, 0);
+      }
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Local fallback/real-time preview
+  const calculateLocalFV = (pmt: number, r: number, n: number) => {
     const monthlyRate = r / 100 / 12;
     const months = n * 12;
     return pmt * ((Math.pow(1 + monthlyRate, months) - 1) / monthlyRate) * (1 + monthlyRate);
   };
 
-  const futureValue = calculateFutureValue(monthlyInvest, rate, years);
-  const totalInvested = monthlyInvest * 12 * years;
-  const earnings = futureValue - totalInvested;
+  const currentFV = results ? results.finalValue : calculateLocalFV(monthlyInvest, rate, years);
+  const currentTotal = results ? results.totalInvested : monthlyInvest * 12 * years;
+  const currentGain = results ? results.gain : currentFV - currentTotal;
 
   const chartData = Array.from({ length: years + 1 }, (_, i) => ({
     year: i,
-    total: calculateFutureValue(monthlyInvest, rate, i),
+    total: calculateLocalFV(monthlyInvest, rate, i),
     invested: monthlyInvest * 12 * i
   }));
 
@@ -372,14 +428,23 @@ function InvestmentSimulator() {
            </div>
         </div>
 
+        <button 
+          onClick={getSimulation}
+          disabled={loading}
+          className="w-full py-4 bg-emerald-600 text-white rounded-2xl font-bold flex items-center justify-center gap-3 hover:bg-emerald-700 transition-all disabled:opacity-50"
+        >
+          <TrendingUp size={20} />
+          {loading ? 'Running simulation...' : 'Run Simulation'}
+        </button>
+
         <div className="grid grid-cols-2 gap-6">
            <div className="p-6 rounded-2xl stat-card border-white/5">
              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Total Invested</p>
-             <p className="text-2xl font-black text-slate-200">₹{totalInvested.toLocaleString()}</p>
+             <p className="text-2xl font-black text-slate-200">₹{currentTotal.toLocaleString()}</p>
            </div>
            <div className="p-6 rounded-2xl bg-emerald-500/10 border border-emerald-500/20">
              <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest mb-2">Estimated Earnings</p>
-             <p className="text-2xl font-black text-emerald-400">₹{earnings.toLocaleString()}</p>
+             <p className="text-2xl font-black text-emerald-400">₹{currentGain.toLocaleString()}</p>
            </div>
         </div>
       </div>
@@ -411,7 +476,7 @@ function InvestmentSimulator() {
         </div>
         <div className="mt-10 pt-8 border-t border-white/5 relative overflow-hidden">
             <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">End Balance Portfolio Value</p>
-            <p className="text-5xl font-black text-blue-400 mt-2">₹{futureValue.toLocaleString()}</p>
+            <p className="text-5xl font-black text-blue-400 mt-2">₹{currentFV.toLocaleString()}</p>
             <p className="text-xs text-slate-500 mt-4 leading-relaxed font-semibold italic">"Compound interest is the powerful engine that turns persistence into prosperity."</p>
             <div className="absolute -right-8 -bottom-8 w-32 h-32 bg-blue-500/10 rounded-full blur-3xl"></div>
         </div>

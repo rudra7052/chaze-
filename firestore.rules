@@ -1,0 +1,144 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} { 
+      allow read, write: if false; 
+    }
+
+    function isValidId(id) { 
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); 
+    }
+
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    function isSignedIn() { return request.auth != null; }
+    function isVerified() { return isSignedIn() && request.auth.token.email_verified == true; }
+    function isAdmin() { return isSignedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid)); }
+
+    // User validation
+    function isValidUser(data, uid) {
+      return data.keys().hasAll(['userId', 'name', 'email', 'createdAt']) &&
+        data.size() <= 6 &&
+        data.userId == uid &&
+        data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+        data.email is string && data.email.size() <= 200 &&
+        data.createdAt is timestamp &&
+        (data.keys().hasAny(['goals']) == false || (data.goals is list && data.goals.size() <= 20 && (data.goals.size() == 0 || data.goals[0] is string))) &&
+        (data.keys().hasAny(['riskProfile']) == false || (data.riskProfile in ['low', 'medium', 'high']));
+    }
+
+    // users permissions
+    match /users/{userId} {
+      allow get: if isVerified() && request.auth.uid == userId;
+      allow list: if false; 
+      allow create: if isVerified() && isValidId(userId) && request.auth.uid == userId && 
+        isValidUser(incoming(), userId) && 
+        incoming().createdAt == request.time;
+      allow update: if isVerified() && isValidId(userId) && request.auth.uid == userId &&
+        isValidUser(incoming(), userId) &&
+        incoming().userId == existing().userId && 
+        incoming().createdAt == existing().createdAt &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['name', 'goals', 'riskProfile', 'updatedAt']);
+      allow delete: if false;
+    }
+
+    // Courses validation
+    function isValidCourse(data) {
+      return data.keys().hasAll(['courseId', 'title', 'description', 'category', 'difficulty', 'modules']) && 
+        data.size() <= 7 &&
+        data.courseId is string && data.courseId.size() > 0 && data.courseId.size() <= 128 &&
+        data.title is string && data.title.size() > 0 && data.title.size() <= 200 &&
+        data.description is string && data.description.size() <= 2000 &&
+        data.category in ['budgeting', 'investment', 'basics'] &&
+        data.difficulty in ['beginner', 'intermediate', 'advanced'] &&
+        data.modules is list && data.modules.size() <= 100;
+    }
+
+    // courses permissions
+    match /courses/{courseId} {
+      allow read: if isVerified(); // Assuming any verified user can see courses
+      allow write: if isAdmin() && isValidId(courseId) && isValidCourse(incoming());
+    }
+
+    // User progress validation
+    function isValidUserProgress(data, uid) {
+      return data.keys().hasAll(['progressId', 'userId', 'courseId', 'completedModules', 'progressPercentage', 'lastAccessed', 'quizScores']) &&
+        data.size() <= 8 &&
+        data.progressId is string && data.progressId.size() <= 128 &&
+        data.userId == uid &&
+        data.courseId is string && data.courseId.size() <= 128 &&
+        data.completedModules is list && data.completedModules.size() <= 100 &&
+        data.progressPercentage is number && data.progressPercentage >= 0 && data.progressPercentage <= 100 &&
+        data.lastAccessed is timestamp &&
+        data.quizScores is list && data.quizScores.size() <= 100;
+    }
+
+    match /user_progress/{progressId} {
+      allow get: if isVerified() && existing().userId == request.auth.uid;
+      allow list: if isVerified() && resource.data.userId == request.auth.uid;
+      allow create: if isVerified() && isValidId(progressId) && 
+        isValidUserProgress(incoming(), request.auth.uid) &&
+        incoming().lastAccessed == request.time &&
+        exists(/databases/$(database)/documents/courses/$(incoming().courseId)); 
+      allow update: if isVerified() && isValidId(progressId) &&
+        existing().userId == request.auth.uid &&
+        isValidUserProgress(incoming(), request.auth.uid) &&
+        incoming().userId == existing().userId &&
+        incoming().courseId == existing().courseId &&
+        incoming().lastAccessed == request.time &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['completedModules', 'progressPercentage', 'lastAccessed', 'quizScores']);
+      allow delete: if false;
+    }
+
+    // SimulationResult validation
+    function isValidSimulationResult(data, uid) {
+      return data.keys().hasAll(['simulationId', 'userId', 'type', 'inputData', 'resultData', 'score', 'createdAt']) &&
+        data.size() <= 8 &&
+        data.simulationId is string && data.simulationId.size() <= 128 &&
+        data.userId == uid &&
+        data.type in ['budget', 'investment'] &&
+        data.inputData is map &&
+        data.resultData is map &&
+        data.score is number &&
+        data.createdAt is timestamp;
+    }
+
+    match /simulation_results/{simulationId} {
+      allow get: if isVerified() && existing().userId == request.auth.uid;
+      allow list: if isVerified() && resource.data.userId == request.auth.uid;
+      allow create: if isVerified() && isValidId(simulationId) && 
+        isValidSimulationResult(incoming(), request.auth.uid) && 
+        incoming().createdAt == request.time;
+      allow update: if false; // immutable history
+      allow delete: if false;
+    }
+
+    // AIInteraction validation
+    function isValidAIInteraction(data, uid) {
+      return data.keys().hasAll(['interactionId', 'userId', 'type', 'input', 'output', 'timestamp']) &&
+        data.size() <= 7 &&
+        data.interactionId is string && data.interactionId.size() <= 128 &&
+        data.userId == uid &&
+        data.type in ['chat', 'summary', 'quiz'] &&
+        data.input is string && data.input.size() <= 2000 &&
+        data.output is string && data.output.size() <= 5000 &&
+        data.timestamp is timestamp;
+    }
+
+    match /ai_interactions/{interactionId} {
+      allow get: if isVerified() && existing().userId == request.auth.uid;
+      allow list: if isVerified() && resource.data.userId == request.auth.uid;
+      allow create: if isVerified() && isValidId(interactionId) && 
+        isValidAIInteraction(incoming(), request.auth.uid) && 
+        incoming().timestamp == request.time;
+      allow update: if false; 
+      allow delete: if false;
+    }
+
+    // Admin configuration (optional, if admins are explicitly listed. For safety we secure it)
+    match /admins/{adminId} {
+      allow read: if isVerified() && request.auth.uid == adminId;
+      allow write: if false; // System must manage admins
+    }
+  }
+}

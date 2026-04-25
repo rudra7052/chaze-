@@ -1,25 +1,54 @@
 import { Wallet, TrendingUp, ShieldCheck, ChevronRight, Lock } from 'lucide-react';
-import { COURSES } from '../constants';
-import { progressService } from '../lib/mockFirebase';
+import { api, LessonData } from './api';
+import { useAuth } from './useAuth';
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'motion/react';
+import { clsx, type ClassValue } from 'clsx';
+import { twMerge } from 'tailwind-merge';
+
+function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
 
 export default function Subjects() {
-  const [completedUnits, setCompletedUnits] = useState<string[]>([]);
+  const { user, profile } = useAuth();
+  const [lessons, setLessons] = useState<LessonData[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function loadData() {
-      const prog = await progressService.getProgress('user-123');
-      setCompletedUnits(prog.completedUnits);
+      if (user && profile) {
+        try {
+          const fetchedLessons = await api.getLessons();
+          setLessons(fetchedLessons);
+        } catch (e) {
+          console.error(e);
+        }
+        setLoading(false);
+      }
     }
     loadData();
-  }, []);
+  }, [user, profile]);
+
+  if (loading) return (
+    <div className="flex items-center justify-center p-20">
+      <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+    </div>
+  );
+
+  const completedUnits = profile?.completedLessons || [];
+
+  const groupedLessons = {
+    budget: lessons.filter(l => l.subject === 'budget').sort((a, b) => a.unitNumber - b.unitNumber),
+    investment: lessons.filter(l => l.subject === 'investment').sort((a, b) => a.unitNumber - b.unitNumber),
+    tax: lessons.filter(l => l.subject === 'tax').sort((a, b) => a.unitNumber - b.unitNumber),
+  };
 
   const subjects = [
-    { id: 'budget', title: 'Budget Management', icon: Wallet, color: 'bg-emerald-500', text: 'text-emerald-500', units: COURSES.budget.units },
-    { id: 'investment', title: 'Investment Basics', icon: TrendingUp, color: 'bg-blue-500', text: 'text-blue-500', units: COURSES.investment.units },
-    { id: 'tax', title: 'Tax Awareness (India)', icon: ShieldCheck, color: 'bg-orange-500', text: 'text-orange-500', units: COURSES.tax.units },
+    { id: 'budget', title: 'Budget Management', icon: Wallet, color: 'bg-emerald-500', text: 'text-emerald-500', units: groupedLessons.budget },
+    { id: 'investment', title: 'Investment Basics', icon: TrendingUp, color: 'bg-blue-500', text: 'text-blue-500', units: groupedLessons.investment },
+    { id: 'tax', title: 'Tax Awareness (India)', icon: ShieldCheck, color: 'bg-orange-500', text: 'text-orange-500', units: groupedLessons.tax },
   ];
 
   return (
@@ -43,7 +72,7 @@ export default function Subjects() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {subj.units.map((unit: any, ui: number) => {
+              {subj.units.map((unit, ui) => {
                 const isCompleted = completedUnits.includes(unit.id);
                 // Unlock logic: first unit unlocked, or previous unit completed
                 const isUnlocked = ui === 0 || completedUnits.includes(subj.units[ui - 1].id);
@@ -57,7 +86,7 @@ export default function Subjects() {
                     transition={{ delay: ui * 0.05 }}
                   >
                     <Link
-                      to={isUnlocked ? `/subjects/${subj.id}/${unit.id}` : '#'}
+                      to={isUnlocked ? `/lesson/${unit.id}` : '#'}
                       className={cn(
                         "block p-8 rounded-[32px] border relative group transition-all duration-300",
                         isUnlocked 
@@ -76,12 +105,12 @@ export default function Subjects() {
                         </div>
                       )}
                       
-                      <span className="text-[10px] font-black tracking-[0.2em] text-slate-500 uppercase">Unit 0{ui + 1}</span>
-                      <h3 className="text-xl font-bold mt-3 text-slate-100 group-hover:text-blue-400 transition-colors">{unit.title}</h3>
-                      <p className="text-sm text-slate-400 mt-3 leading-relaxed line-clamp-2">{unit.description}</p>
+                      <span className="text-[10px] font-black tracking-[0.2em] text-slate-500 uppercase">Unit 0{unit.unitNumber}</span>
+                      <h3 className="text-xl font-bold mt-3 text-slate-100 group-hover:text-blue-400 transition-colors line-clamp-1">{unit.title}</h3>
+                      <p className="text-sm text-slate-400 mt-3 leading-relaxed line-clamp-2">Complete this lesson to earn {unit.xpReward} XP.</p>
                       
                       <div className="mt-8 flex items-center justify-between">
-                        <span className="text-xs font-bold text-blue-400 opacity-0 group-hover:opacity-100 transition-all translate-x--2 group-hover:translate-x-0">Start Learning</span>
+                        <span className="text-xs font-bold text-blue-400 opacity-0 group-hover:opacity-100 transition-all -translate-x-2 group-hover:translate-x-0">Start Learning</span>
                         <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-slate-400 group-hover:bg-blue-500 group-hover:text-white transition-all">
                           <ChevronRight size={20} className="group-hover:translate-x-0.5 transition-transform" />
                         </div>
@@ -90,14 +119,13 @@ export default function Subjects() {
                   </motion.div>
                 );
               })}
+              {subj.units.length === 0 && (
+                 <div className="text-slate-500 italic p-4">Lessons are being generated...</div>
+              )}
             </div>
           </section>
         ))}
       </div>
     </div>
   );
-}
-
-function cn(...inputs: any[]) {
-  return inputs.filter(Boolean).join(' ');
 }

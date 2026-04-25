@@ -38,14 +38,16 @@ export const XP_PER_UNIT = 100;
 export const XP_PER_QUIZ_CORRECT = 20;
 
 export const LEVELS = [
-  { name: 'Beginner', minXp: 0 },
-  { name: 'Intermediate', minXp: 500 },
-  { name: 'Advanced', minXp: 1500 },
-  { name: 'Pro', minXp: 3000 }
+  { name: 'Level 1', minXp: 0 },
+  { name: 'Level 2', minXp: 100 },
+  { name: 'Level 3', minXp: 300 },
+  { name: 'Level 4', minXp: 700 }
 ];
 
 export const BADGES = [
-  { id: 'budget-master', name: 'Budget Master', icon: 'Wallet' },
+  { id: 'Starter', name: 'Starter', icon: 'Star' },
+  { id: 'Consistent Learner', name: 'Consistent Learner', icon: 'Target' },
+  { id: 'Budget Master', name: 'Budget Master', icon: 'Wallet' },
   { id: 'smart-investor', name: 'Smart Investor', icon: 'TrendingUp' },
   { id: 'tax-saver', name: 'Tax Saver', icon: 'ShieldCheck' }
 ];

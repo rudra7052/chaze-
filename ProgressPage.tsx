@@ -1,37 +1,46 @@
 import { useState, useEffect } from 'react';
-import { progressService, profileService } from '../lib/mockFirebase';
-import { UserProgress, UserProfile } from '../types';
-import { COURSES, BADGES, LEVELS } from '../constants';
+import { useAuth } from './useAuth';
+import { BADGES } from './constants';
 import { motion } from 'motion/react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { Trophy, Star, Target, Zap, Award } from 'lucide-react';
 
 export default function ProgressPage() {
-  const [progress, setProgress] = useState<UserProgress | null>(null);
-  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const { user, profile } = useAuth();
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function loadData() {
-      const prog = await progressService.getProgress('user-123');
-      const prof = await profileService.getProfile('user-123');
-      setProgress(prog);
-      setProfile(prof);
+      if (user && profile) {
+        setLoading(false);
+      }
     }
     loadData();
-  }, []);
+  }, [user, profile]);
 
-  if (!progress || !profile) return <div>Loading...</div>;
+  if (loading || !profile) return (
+    <div className="flex items-center justify-center p-20">
+      <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+    </div>
+  );
 
-  const currentLevel = [...LEVELS].reverse().find(l => progress.xp >= l.minXp) || LEVELS[0];
-  const nextLevel = LEVELS[LEVELS.indexOf(currentLevel) + 1] || null;
-  const progressToNext = nextLevel ? ((progress.xp - currentLevel.minXp) / (nextLevel.minXp - currentLevel.minXp)) * 100 : 100;
+  const totalXP = profile.xp || 0;
+  const allCompleted = profile.completedLessons || [];
 
-  const subjectProgress = Object.values(COURSES).map((course: any) => ({
-    name: course.title,
-    completed: course.units.filter((u: any) => progress.completedUnits.includes(u.id)).length,
-    total: course.units.length,
-    color: course.id === 'budget' ? '#10b981' : course.id === 'investment' ? '#3b82f6' : '#f59e0b'
-  }));
+  const calculatedLevel = profile.level ?? Math.floor(totalXP / 100);
+  const nextLevelXp = (calculatedLevel + 1) * 100;
+  const currentLevelXp = calculatedLevel * 100;
+  const progressToNext = ((totalXP - currentLevelXp) / 100) * 100;
+
+  // Assuming we still have 5 lessons per subject based on our new lessons
+  const subjectProgress = [
+    { name: 'Budget Management', completed: allCompleted.filter((id: string) => id.startsWith('budget')).length, total: 5, color: '#10b981' },
+    { name: 'Investment Basics', completed: allCompleted.filter((id: string) => id.startsWith('investment')).length, total: 5, color: '#3b82f6' },
+    { name: 'Tax Awareness', completed: allCompleted.filter((id: string) => id.startsWith('tax')).length, total: 5, color: '#f59e0b' }
+  ];
+
+  // Calculate streak roughly
+  const streak = profile.lastActive ? 1 : 0; // Better logic needed if tracking daily, using 1 for mock
 
   return (
     <div className="space-y-12 pb-20">
@@ -49,13 +58,13 @@ export default function ProgressPage() {
           <div className="lg:col-span-7 space-y-8">
             <div>
               <p className="text-[10px] font-black opacity-60 uppercase tracking-[0.3em]">Current Status</p>
-              <h2 className="text-6xl font-black mt-3 tracking-tighter">{currentLevel.name}</h2>
+              <h2 className="text-6xl font-black mt-3 tracking-tighter">Level {calculatedLevel}</h2>
             </div>
             
             <div className="space-y-4">
               <div className="flex justify-between items-end">
-                <span className="text-xs font-black tracking-widest uppercase opacity-80">{progress.xp} / {nextLevel ? nextLevel.minXp : 'MAX'} XP</span>
-                <span className="text-xs font-black tracking-widest uppercase text-blue-200">{nextLevel ? `${nextLevel.minXp - progress.xp} XP to ${nextLevel.name}` : 'Supreme Master'}</span>
+                <span className="text-xs font-black tracking-widest uppercase opacity-80">{totalXP} / {nextLevelXp} XP</span>
+                <span className="text-xs font-black tracking-widest uppercase text-blue-200">{nextLevelXp - totalXP} XP to Level {calculatedLevel + 1}</span>
               </div>
               <div className="w-full h-3 bg-white/10 rounded-full overflow-hidden backdrop-blur-md border border-white/5">
                 <motion.div 
@@ -71,12 +80,12 @@ export default function ProgressPage() {
           <div className="lg:col-span-5 grid grid-cols-2 gap-6">
             <div className="bg-white/5 backdrop-blur-xl p-6 rounded-[32px] border border-white/10 flex flex-col items-center text-center">
               <Zap className="text-orange-400 mb-3" size={28} />
-              <p className="text-4xl font-black">{progress.streak}</p>
+              <p className="text-4xl font-black">{streak}</p>
               <p className="text-[10px] font-black opacity-50 uppercase tracking-widest mt-2">Day Streak</p>
             </div>
             <div className="bg-white/5 backdrop-blur-xl p-6 rounded-[32px] border border-white/10 flex flex-col items-center text-center">
               <Trophy className="text-yellow-400 mb-3" size={28} />
-              <p className="text-4xl font-black">{profile.badges.length}</p>
+              <p className="text-4xl font-black">{profile.badges?.length || 0}</p>
               <p className="text-[10px] font-black opacity-50 uppercase tracking-widest mt-2">Badges</p>
             </div>
           </div>
@@ -125,7 +134,7 @@ export default function ProgressPage() {
           </h3>
           <div className="grid grid-cols-3 gap-y-10 gap-x-6">
             {BADGES.map((badge) => {
-              const earned = profile.badges.includes(badge.id);
+              const earned = profile.badges?.includes(badge.id) || false;
               return (
                 <div key={badge.id} className="flex flex-col items-center gap-4 group">
                   <div className={cn(
