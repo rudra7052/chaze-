@@ -1,1 +1,1 @@
-// App.tsx file content
+export { default } from '../../App.tsx';
