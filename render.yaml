@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: chaze-x
+    runtime: node
+    plan: free
+    region: oregon
+    buildCommand: npm install && npm run build
+    startCommand: npm run start
+    autoDeployTrigger: commit
+    healthCheckPath: /api/health
+    envVars:
+      - key: APP_URL
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: FIREBASE_SERVICE_ACCOUNT_JSON
+        sync: false

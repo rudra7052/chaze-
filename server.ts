@@ -6,12 +6,11 @@ dotenv.config();
 import { createServer as createViteServer } from "vite";
 import path from "path";
 import { fileURLToPath } from "url";
-import admin from "firebase-admin";
-import fs from "fs";
 import aiRoutes from "./ai";
 import simulationRoutes from "./simulation";
 import learningRoutes from "./learning";
 import lessonsRoutes from "./lessons";
+import { admin, initializeFirebaseAdmin } from "./firebaseAdmin";
 
 // ESM polyfill for __dirname
 const __filename = fileURLToPath(import.meta.url);
@@ -19,25 +18,19 @@ const __dirname = path.dirname(__filename);
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  const PORT = Number(process.env.PORT || 3000);
 
   // Initialize Firebase Admin
-  const serviceAccountPath = path.join(__dirname, "serviceAccount.json");
-  if (fs.existsSync(serviceAccountPath)) {
-    try {
-      const serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, "utf8"));
-      if (!admin.apps.length) {
-        admin.initializeApp({
-          credential: admin.credential.cert(serviceAccount)
-        });
-      }
-      console.log("Firebase Admin initialized successfully.");
-    } catch (error) {
-      console.error("Error initializing Firebase Admin:", error);
+  try {
+    const firebaseStatus = initializeFirebaseAdmin();
+    if (firebaseStatus.initialized) {
+      console.log(`Firebase Admin initialized successfully from ${firebaseStatus.source}.`);
+    } else {
+      console.warn("Firebase Admin credentials were not found.");
+      console.warn("Running with local lesson fallbacks only.");
     }
-  } else {
-    console.warn("Service account file not found at:", serviceAccountPath);
-    console.warn("Running with local lesson fallbacks only.");
+  } catch (error) {
+    console.error("Error initializing Firebase Admin:", error);
   }
 
   app.use(express.json());
@@ -52,7 +45,8 @@ async function startServer() {
   app.get("/api/health", (req, res) => {
     res.json({ 
       status: "ok", 
-      firebase: admin.apps.length > 0 ? "connected" : "not connected" 
+      firebase: admin.apps.length > 0 ? "connected" : "not connected",
+      environment: process.env.NODE_ENV || "development",
     });
   });
 

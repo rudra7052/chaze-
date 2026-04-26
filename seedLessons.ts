@@ -1,22 +1,11 @@
-import admin from "firebase-admin";
-import path from "path";
-import { fileURLToPath } from "url";
-import fs from "fs";
 import { LESSONS } from "./lessonData";
+import { admin, initializeFirebaseAdmin } from "./firebaseAdmin";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-// Initialize Firebase Admin
-const serviceAccountPath = path.join(__dirname, "serviceAccount.json");
-if (fs.existsSync(serviceAccountPath)) {
-  const serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, "utf8"));
-  admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount)
-  });
-  console.log("Firebase Admin initialized successfully.");
-} else {
-  console.error("Service account file not found! Please place it at backend/serviceAccount.json");
+try {
+  const firebaseStatus = initializeFirebaseAdmin({ required: true });
+  console.log(`Firebase Admin initialized successfully from ${firebaseStatus.source}.`);
+} catch (error) {
+  console.error(error instanceof Error ? error.message : error);
   process.exit(1);
 }
 
