@@ -4,7 +4,7 @@ import { useAuth } from './useAuth';
 import { User, Mail, Shield, Camera, Edit2, LogOut } from 'lucide-react';
 
 export default function Profile() {
-  const { user, profile, isDemoUser, logout } = useAuth();
+  const { user, profile, isGuestUser, logout } = useAuth();
   const [loading, setLoading] = useState(true);
   const [progressData, setProgressData] = useState<any[]>([]);
 
@@ -35,7 +35,11 @@ export default function Profile() {
     <div className="max-w-5xl mx-auto space-y-12 pb-20">
       <header>
         <h1 className="text-3xl font-bold tracking-tight text-white">Account Settings</h1>
-        <p className="text-slate-400 mt-2">Manage your profile and learning preferences.</p>
+        <p className="text-slate-400 mt-2">
+          {isGuestUser
+            ? 'You are using Chaze X in guest mode. Your activity stays saved in this browser.'
+            : 'Manage your profile and learning preferences.'}
+        </p>
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
@@ -74,7 +78,7 @@ export default function Profile() {
             className="w-full flex items-center justify-center gap-3 py-5 px-6 rounded-[24px] bg-white/5 border border-white/5 text-rose-400 hover:bg-rose-500/10 hover:border-rose-500/30 transition-all font-bold group"
           >
             <LogOut size={20} className="group-hover:-translate-x-1 transition-transform" />
-            {isDemoUser ? 'Exit Demo Mode' : 'Sign Out'}
+            {isGuestUser ? 'Exit Guest Mode' : 'Sign Out'}
           </button>
         </div>
 
@@ -98,10 +102,14 @@ export default function Profile() {
                     </div>
                   </div>
                   <div className="space-y-3">
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">Encrypted Email</label>
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">
+                      {isGuestUser ? 'Guest Session' : 'Encrypted Email'}
+                    </label>
                     <div className="p-5 bg-white/5 border border-white/5 rounded-2xl flex items-center gap-4 group">
                       <Mail size={20} className="text-slate-500" />
-                      <span className="font-bold text-slate-500 truncate">{user.email}</span>
+                      <span className="font-bold text-slate-500 truncate">
+                        {isGuestUser ? 'Stored only on this browser' : user.email}
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -114,7 +122,9 @@ export default function Profile() {
                       </div>
                       <div>
                         <span className="text-xl font-black text-blue-400 uppercase tracking-tighter">{level}</span>
-                        <p className="text-[10px] font-black text-blue-300 opacity-60">Verified Member</p>
+                        <p className="text-[10px] font-black text-blue-300 opacity-60">
+                          {isGuestUser ? 'Guest Access' : 'Verified Member'}
+                        </p>
                       </div>
                     </div>
                   </div>

@@ -34,7 +34,7 @@ function getLoginErrorMessage(error: unknown) {
   }
 
   if (code === 'auth/popup-blocked') {
-    return 'This browser blocked the Google sign-in popup. Use Local Demo Mode here, or open the app in Chrome or Safari for real Google login.';
+    return 'This browser blocked the Google sign-in popup. Use Guest Mode here, or open the app in Chrome or Safari for real Google login.';
   }
 
   if (code === 'auth/network-request-failed') {
@@ -55,13 +55,12 @@ import FloatChat from './FloatChat';
 
 export default function App() {
   const location = useLocation();
-  const { user, profile, loading, startDemoMode } = useAuth();
+  const { user, profile, loading, startGuestMode } = useAuth();
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
   const host = window.location.hostname;
   const isRawIpHost = /^(?:\d{1,3}\.){3}\d{1,3}$/.test(host);
   const isLanHost = host !== 'localhost' && host !== '127.0.0.1';
-  const canUseDemoMode = host === 'localhost' || host === '127.0.0.1' || isRawIpHost;
   
   const handleLogin = async () => {
     const provider = new GoogleAuthProvider();
@@ -95,7 +94,7 @@ export default function App() {
             C
           </div>
           <h1 className="text-3xl font-bold tracking-tight text-white mb-2">Chaze X</h1>
-          <p className="text-slate-400 mb-8">Sign in to start your financial literacy journey.</p>
+          <p className="text-slate-400 mb-8">Sign in to save your account, or continue as a guest to explore the app right away.</p>
           <button 
             onClick={handleLogin}
             disabled={isLoggingIn}
@@ -103,22 +102,18 @@ export default function App() {
           >
             {isLoggingIn ? 'Opening Google Sign-In...' : 'Sign in with Google'}
           </button>
-          {canUseDemoMode && (
-            <button
-              onClick={startDemoMode}
-              className="w-full mt-3 py-4 bg-white/5 hover:bg-white/10 text-slate-200 rounded-xl font-bold transition-colors border border-white/10"
-            >
-              Continue in Local Demo Mode
-            </button>
-          )}
+          <button
+            onClick={startGuestMode}
+            className="w-full mt-3 py-4 bg-white/5 hover:bg-white/10 text-slate-200 rounded-xl font-bold transition-colors border border-white/10"
+          >
+            Continue as Guest
+          </button>
           {loginError && (
             <p className="mt-4 text-sm text-rose-300 leading-relaxed">{loginError}</p>
           )}
-          {canUseDemoMode && (
-            <p className="mt-4 text-xs text-slate-400 leading-relaxed">
-              Google sign-in can fail inside embedded browsers because Firebase popup and redirect storage are restricted here. Demo mode keeps the app usable on localhost and LAN while you test locally.
-            </p>
-          )}
+          <p className="mt-4 text-xs text-slate-400 leading-relaxed">
+            Guest mode keeps your profile, simulator activity, and progress in this browser so you can use the app without Google sign-in.
+          </p>
           {isLanHost && (
             <p className="mt-4 text-xs text-amber-200/80 leading-relaxed">
               Accessing this app from another device may require this host to be added in Firebase Authentication authorized domains.

@@ -3,8 +3,10 @@ import { User, getRedirectResult, onAuthStateChanged, signOut } from 'firebase/a
 import { auth } from './firebase';
 import { firebaseService } from './firebaseService';
 
-const DEMO_MODE_KEY = 'chaze-demo-mode';
-const DEMO_USER_ID = 'local-demo-user';
+const LEGACY_DEMO_MODE_KEY = 'chaze-demo-mode';
+const GUEST_MODE_KEY = 'chaze-guest-mode';
+// Keep the legacy local user id so existing browser-stored demo data still loads in guest mode.
+const GUEST_USER_ID = 'local-demo-user';
 
 export interface UserProfile {
   name: string;
@@ -22,9 +24,9 @@ interface AuthContextType {
   user: User | null;
   profile: UserProfile | null;
   loading: boolean;
-  isDemoUser: boolean;
+  isGuestUser: boolean;
   refreshProfile: () => Promise<void>;
-  startDemoMode: () => void;
+  startGuestMode: () => void;
   logout: () => Promise<void>;
   setProfile: React.Dispatch<React.SetStateAction<UserProfile | null>>;
 }
@@ -33,9 +35,9 @@ const AuthContext = createContext<AuthContextType>({
   user: null,
   profile: null,
   loading: true,
-  isDemoUser: false,
+  isGuestUser: false,
   refreshProfile: async () => {},
-  startDemoMode: () => {},
+  startGuestMode: () => {},
   logout: async () => {},
   setProfile: () => {},
 });
@@ -45,10 +47,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const buildDemoUser = (): User => ({
-    uid: DEMO_USER_ID,
-    email: 'demo@localhost',
-    displayName: 'Local Demo',
+  const isGuestSessionStored = () => {
+    if (typeof window === 'undefined') {
+      return false;
+    }
+
+    return window.localStorage.getItem(GUEST_MODE_KEY) === 'true'
+      || window.localStorage.getItem(LEGACY_DEMO_MODE_KEY) === 'true';
+  };
+
+  const persistGuestSession = () => {
+    window.localStorage.setItem(GUEST_MODE_KEY, 'true');
+    window.localStorage.setItem(LEGACY_DEMO_MODE_KEY, 'true');
+  };
+
+  const clearGuestSession = () => {
+    window.localStorage.removeItem(GUEST_MODE_KEY);
+    window.localStorage.removeItem(LEGACY_DEMO_MODE_KEY);
+  };
+
+  const buildGuestUser = (): User => ({
+    uid: GUEST_USER_ID,
+    email: 'guest@chaze-x.local',
+    displayName: 'Guest User',
   } as User);
 
   const buildFallbackProfile = (currentUser: User): UserProfile => ({
@@ -102,20 +123,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const startDemoMode = () => {
-    const demoUser = buildDemoUser();
-    window.localStorage.setItem(DEMO_MODE_KEY, 'true');
-    setUser(demoUser);
-    setProfile((prev) => prev ?? buildFallbackProfile(demoUser));
+  const startGuestMode = () => {
+    const guestUser = buildGuestUser();
+    persistGuestSession();
+    setUser(guestUser);
+    setProfile((prev) => prev ?? buildFallbackProfile(guestUser));
     setLoading(false);
-    void fetchProfile(demoUser);
+    void fetchProfile(guestUser);
   };
 
   const logout = async () => {
-    const isDemoSession = user?.uid === DEMO_USER_ID || window.localStorage.getItem(DEMO_MODE_KEY) === 'true';
+    const isGuestSession = user?.uid === GUEST_USER_ID || isGuestSessionStored();
 
-    if (isDemoSession) {
-      window.localStorage.removeItem(DEMO_MODE_KEY);
+    if (isGuestSession) {
+      clearGuestSession();
       setUser(null);
       setProfile(null);
       setLoading(false);
@@ -126,12 +147,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   useEffect(() => {
-    if (window.localStorage.getItem(DEMO_MODE_KEY) === 'true') {
-      const demoUser = buildDemoUser();
-      setUser(demoUser);
-      setProfile((prev) => prev ?? buildFallbackProfile(demoUser));
+    if (isGuestSessionStored()) {
+      const guestUser = buildGuestUser();
+      setUser(guestUser);
+      setProfile((prev) => prev ?? buildFallbackProfile(guestUser));
       setLoading(false);
-      void fetchProfile(demoUser);
+      void fetchProfile(guestUser);
       return () => {};
     }
 
@@ -194,10 +215,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, []);
 
-  const isDemoUser = user?.uid === DEMO_USER_ID;
+  const isGuestUser = user?.uid === GUEST_USER_ID;
 
   return (
-    <AuthContext.Provider value={{ user, profile, loading, isDemoUser, refreshProfile, startDemoMode, logout, setProfile }}>
+    <AuthContext.Provider value={{ user, profile, loading, isGuestUser, refreshProfile, startGuestMode, logout, setProfile }}>
       {children}
     </AuthContext.Provider>
   );
